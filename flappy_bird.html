@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Flappy Bird Amélioré</title>
+  <style>
+    body {
+      margin: 0;
+      overflow: hidden;
+      font-family: Arial, sans-serif;
+      background-color: #70c5ce;
+    }
+    canvas {
+      display: block;
+      background-color: #70c5ce;
+    }
+    .startScreen, .endScreen {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0,0,0,0.7);
+      color: white;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      flex-direction: column;
+      font-size: 24px;
+      visibility: hidden;
+    }
+    .startScreen.visible, .endScreen.visible {
+      visibility: visible;
+    }
+    .startScreen h1, .endScreen h1 {
+      font-size: 48px;
+      margin: 0 0 20px 0;
+    }
+    .startScreen p, .endScreen p {
+      margin: 0;
+    }
+  </style>
+</head>
+<body>
+
+<div class="startScreen visible">
+  <h1>Flappy Bird</h1>
+  <p>Appuyez sur Espace, Flèche du haut ou Cliquez pour commencer</p>
+</div>
+<div class="endScreen">
+  <h1>Game Over</h1>
+  <p>Score: <span id="finalScore">0</span></p>
+  <p>Appuyez sur Espace, Flèche du haut ou Cliquez pour recommencer</p>
+</div>
+
+<canvas id="gameCanvas"></canvas>
+
+<script>
+  const canvas = document.getElementById('gameCanvas');
+  const ctx = canvas.getContext('2d');
+
+  canvas.width = window.innerWidth;
+  canvas.height = window.innerHeight;
+
+  const GRAVITY = 0.5;
+  const JUMP = -10;
+  const PIPE_WIDTH = 80;
+  const PIPE_GAP = 220;
+  let pipeSpeed = 3;  // La vitesse commence à 3, mais elle augmente progressivement.
+
+  let birdImg = new Image();
+  birdImg.src = 'https://th.bing.com/th?id=OIP.eZng-sJxrst3SAbJWueiwgHaFN&w=298&h=209&c=8&rs=1&qlt=90&o=6&dpr=1.5&pid=3.1&rm=2';
+
+  let pipeImgTop = new Image();
+  pipeImgTop.src = 'https://th.bing.com/th?id=OIP.hYF_S7MXdTkJtOqouRZxIQHaN8&w=182&h=343&c=8&rs=1&qlt=90&o=6&dpr=1.5&pid=3.1&rm=2';
+
+  let pipeImgBottom = new Image();
+  pipeImgBottom.src = 'https://th.bing.com/th?id=OIP.hYF_S7MXdTkJtOqouRZxIQHaN8&w=182&h=343&c=8&rs=1&qlt=90&o=6&dpr=1.5&pid=3.1&rm=2';
+
+  let bird = { x: 100, y: canvas.height / 2, width: 40, height: 40, velocity: 0 };
+  let pipes = [];
+  let score = 0;
+  let gameRunning = false;
+  let gameOver = false;
+  let lastPipeX = canvas.width; // Position du dernier tuyau ajouté
+  const MIN_PIPE_DISTANCE = 300; // Distance minimale entre les tuyaux
+
+  document.body.addEventListener('keydown', function(e) {
+    if ([' ', 'ArrowUp'].includes(e.key) && gameRunning) {
+      bird.velocity = JUMP;
+    } else if (!gameRunning && !gameOver && ([' ', 'ArrowUp'].includes(e.key))) {
+      startGame();
+    } else if (gameOver && [' ', 'ArrowUp'].includes(e.key)) {
+      resetGame();
+    }
+  });
+
+  document.body.addEventListener('click', function() {
+    if (gameRunning) {
+      bird.velocity = JUMP;
+    } else if (!gameRunning && !gameOver) {
+      startGame();
+    } else if (gameOver) {
+      resetGame();
+    }
+  });
+
+  function startGame() {
+    gameRunning = true;
+    gameOver = false;
+    document.querySelector('.startScreen').classList.remove('visible');
+    pipes = [];
+    score = 0;
+    bird.y = canvas.height / 2;
+    bird.velocity = 0;
+    pipeSpeed = 3;  // Réinitialiser la vitesse
+    addPipe();
+    gameLoop();
+  }
+
+  function resetGame() {
+    gameOver = false;
+    document.querySelector('.endScreen').classList.remove('visible');
+    document.querySelector('.startScreen').classList.add('visible');
+  }
+
+  function gameLoop() {
+    if (!gameRunning) return;
+    update();
+    draw();
+    if (gameOver) {
+      document.querySelector('.endScreen').classList.add('visible');
+      document.getElementById('finalScore').innerText = score;
+      return;
+    }
+    requestAnimationFrame(gameLoop);
+  }
+
+  function update() {
+    bird.velocity += GRAVITY;
+    bird.y += bird.velocity;
+
+    pipes.forEach(pipe => {
+      pipe.x -= pipeSpeed;
+    });
+
+    // Supprimer les tuyaux qui sortent de l'écran
+    if (pipes.length && pipes[0].x + PIPE_WIDTH < 0) {
+      pipes.shift();
+      score++;
+    }
+
+    // Ajouter un nouveau tuyau si la distance minimale est respectée
+    if (lastPipeX - pipes[pipes.length - 1]?.x >= MIN_PIPE_DISTANCE) {
+      addPipe();
+    }
+
+    // Collision avec les tuyaux
+    pipes.forEach(pipe => {
+      if (bird.x + bird.width > pipe.x && bird.x < pipe.x + PIPE_WIDTH) {
+        if (bird.y < pipe.top || bird.y + bird.height > pipe.bottom) {
+          gameOver = true;
+          gameRunning = false;
+        }
+      }
+    });
+
+    // Collision avec le haut ou le bas de l'écran
+    if (bird.y + bird.height > canvas.height || bird.y < 0) {
+      gameOver = true;
+      gameRunning = false;
+    }
+
+    // Augmentation de la difficulté
+    if (score > 0 && score % 5 === 0) {
+      pipeSpeed += 0.01;
+    }
+  }
+
+  function draw() {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    // Dessiner l'oiseau
+    ctx.drawImage(birdImg, bird.x, bird.y, bird.width, bird.height);
+
+    // Dessiner les tuyaux
+    pipes.forEach(pipe => {
+      ctx.drawImage(pipeImgTop, pipe.x, 0, PIPE_WIDTH, pipe.top);
+      ctx.drawImage(pipeImgBottom, pipe.x, pipe.bottom, PIPE_WIDTH, canvas.height - pipe.bottom);
+    });
+
+    // Afficher le score
+    ctx.fillStyle = '#000';
+    ctx.font = '30px Arial';
+    ctx.fillText(`Score: ${score}`, 10, 30);
+  }
+
+  function addPipe() {
+    const pipeHeight = Math.random() * (canvas.height - PIPE_GAP - 100) + 50;
+    const newPipeX = canvas.width + PIPE_WIDTH;
+    pipes.push({
+      x: newPipeX,
+      top: pipeHeight,
+      bottom: pipeHeight + PIPE_GAP
+    });
+    lastPipeX = newPipeX; // Mise à jour de la position du dernier tuyau
+  }
+
+  window.addEventListener('resize', () => {
+    canvas.width = window.innerWidth;
+    canvas.height = window.innerHeight;
+  });
+</script>
+
+</body>
+</html>

@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Jeu Dino Chrome</title>
+  <style>
+    body {
+      margin: 0;
+      overflow: hidden;
+      font-family: Arial, sans-serif;
+      background-color: #f7f7f7;
+    }
+    canvas {
+      display: block;
+      background-color: #fff;
+      border-bottom: 2px solid #000;
+    }
+    .startScreen, .endScreen {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0, 0, 0, 0.7);
+      color: white;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      flex-direction: column;
+      font-size: 24px;
+      visibility: hidden;
+    }
+    .startScreen.visible, .endScreen.visible {
+      visibility: visible;
+    }
+    .startScreen h1, .endScreen h1 {
+      font-size: 48px;
+      margin: 0 0 20px 0;
+    }
+    .startScreen p, .endScreen p {
+      margin: 0;
+    }
+  </style>
+</head>
+<body>
+
+<div class="startScreen visible">
+  <h1>Dino Chrome</h1>
+  <p>Appuyez sur Espace ou Flèche du haut pour commencer</p>
+</div>
+<div class="endScreen">
+  <h1>Game Over</h1>
+  <p>Score: <span id="finalScore">0</span></p>
+  <p>Appuyez sur Espace ou Flèche du haut pour recommencer</p>
+</div>
+
+<canvas id="gameCanvas"></canvas>
+
+<script>
+  const canvas = document.getElementById('gameCanvas');
+  const ctx = canvas.getContext('2d');
+
+  canvas.width = window.innerWidth;
+  canvas.height = window.innerHeight - 100; // On réduit un peu la hauteur du canvas
+
+  const GRAVITY = 0.6;
+  const JUMP = -15;
+  let gameRunning = false;
+  let gameOver = false;
+  let score = 0;
+  let cactusSpeed = 6; // Vitesse de base des cactus
+
+  // Images du dinosaure et du cactus
+  const dinoImg = new Image();
+  dinoImg.src = 'https://www.bing.com/th?id=OIP.P82LrxQ7dsP8jQkgVzBxVQHaE6&w=176&h=185&c=8&rs=1&qlt=90&o=6&dpr=1.5&pid=3.1&rm=2';
+
+  const cactusImg = new Image();
+  cactusImg.src = 'https://images.pexels.com/photos/18790690/pexels-photo-18790690/free-photo-of-cactus-in-a-garden.jpeg?auto=compress&cs=tinysrgb&w=600';
+
+  // Paramètres du dinosaure
+  let dino = {
+    x: 50,
+    y: canvas.height - 150,
+    width: 80,
+    height: 80,
+    velocity: 0,
+    jumping: false
+  };
+
+  // Tableau des cactus
+  let cacti = [];
+
+  document.body.addEventListener('keydown', function (e) {
+    if ([' ', 'ArrowUp'].includes(e.key) && gameRunning && !dino.jumping) {
+      dino.velocity = JUMP;
+      dino.jumping = true;
+    } else if (!gameRunning && !gameOver && [' ', 'ArrowUp'].includes(e.key)) {
+      startGame();
+    } else if (gameOver && [' ', 'ArrowUp'].includes(e.key)) {
+      resetGame();
+    }
+  });
+
+  function startGame() {
+    gameRunning = true;
+    gameOver = false;
+    document.querySelector('.startScreen').classList.remove('visible');
+    cacti = [];
+    score = 0;
+    dino.y = canvas.height - 150;
+    dino.velocity = 0;
+    cactusSpeed = 6; // Réinitialiser la vitesse des cactus
+    addCactus();
+    gameLoop();
+  }
+
+  function resetGame() {
+    gameOver = false;
+    document.querySelector('.endScreen').classList.remove('visible');
+    document.querySelector('.startScreen').classList.add('visible');
+  }
+
+  function gameLoop() {
+    if (!gameRunning) return;
+    update();
+    draw();
+    if (gameOver) {
+      document.querySelector('.endScreen').classList.add('visible');
+      document.getElementById('finalScore').innerText = score;
+      return;
+    }
+    requestAnimationFrame(gameLoop);
+  }
+
+  function update() {
+    // Gravité pour le dinosaure
+    dino.velocity += GRAVITY;
+    dino.y += dino.velocity;
+
+    // Limite de saut et atterrissage
+    if (dino.y > canvas.height - 150) {
+      dino.y = canvas.height - 150;
+      dino.jumping = false;
+    }
+
+    // Déplacer les cactus
+    cacti.forEach(cactus => {
+      cactus.x -= cactusSpeed;
+    });
+
+    // Ajouter un cactus quand le dernier est suffisamment loin
+    if (cacti.length === 0 || cacti[cacti.length - 1].x < canvas.width - 400) {
+      addCactus();
+    }
+
+    // Supprimer les cactus hors écran
+    if (cacti.length && cacti[0].x < -cacti[0].width) {
+      cacti.shift();
+      score++;
+
+      // Augmenter la vitesse des cactus à chaque score
+      if (score % 5 === 0) { // Chaque 5 points
+        cactusSpeed += 0.5; // Augmenter la vitesse
+      }
+    }
+
+    // Collision entre le dinosaure et les cactus
+    cacti.forEach(cactus => {
+      if (dino.x + dino.width > cactus.x && dino.x < cactus.x + cactus.width) {
+        if (dino.y + dino.height > cactus.y) {
+          gameOver = true;
+          gameRunning = false;
+        }
+      }
+    });
+  }
+
+  function draw() {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    // Dessiner le dinosaure
+    ctx.drawImage(dinoImg, dino.x, dino.y, dino.width, dino.height);
+
+    // Dessiner les cactus
+    cacti.forEach(cactus => {
+      ctx.drawImage(cactusImg, cactus.x, cactus.y, cactus.width, cactus.height);
+    });
+
+    // Afficher le score
+    ctx.fillStyle = '#000';
+    ctx.font = '30px Arial';
+    ctx.fillText(`Score: ${score}`, 10, 30);
+  }
+
+  function addCactus() {
+    const cactusHeight = 80;
+    const cactusWidth = 50;
+    const cactusX = canvas.width;
+    const cactusY = canvas.height - 150;
+    cacti.push({
+      x: cactusX,
+      y: cactusY,
+      width: cactusWidth,
+      height: cactusHeight
+    });
+  }
+
+  window.addEventListener('resize', () => {
+    canvas.width = window.innerWidth;
+    canvas.height = window.innerHeight - 100;
+  });
+
+</script>
+
+</body>
+</html>
